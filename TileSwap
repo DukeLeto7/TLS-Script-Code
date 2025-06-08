@@ -1,10 +1,12 @@
 =begin
 ================================================================================
-  Title: Tile Swap
- Author: Hime, Rycochet
+  Title: Revised Tile Swap
+ Author: Hime, Rycochet, DukeLeto7
    Date: Jun 11, 2014
 --------------------------------------------------------------------------------
  ** Change log
+ 3.4 Jun 7, 2025 by DukeLeto7
+   - adapted swapping by tiles to retain autotile edges of original map tiles.
  3.3
    - added support for auto-tiles on layer 2
  3.2 Jun 8, 2014
@@ -112,6 +114,42 @@
 	 ...
 
  The ID that you want is exactly as it appears on your tileset.
+ 
+ DukeLeto7's Notes:
+ 
+ Clarification on external versus internal tile IDs.  Tile IDs are stored 
+ internally as large integer numbers.  Tiles A1 through A127 are stored as 
+ numbers 2096 through 8144, at intervals of 48.  Numbers evenly divisible by
+ 48 are each of the 127 default centered tiles with no edge effects.  Tiles
+ with edge definitions are stored in the interval as bitwise flagsets.  1 is
+ left edge, 2 is top edge, 4 is right edge and 8 is bottom edge, so a tile ID 7
+ more than the "round" number divisible by 48 for a given autotile set would 
+ be a version of the tile with left, top and right edges.  You can get this
+ "index" number by taking the modulus of 48 of one of these internal tile IDs.
+ (16 and larger numbers also enter into the edge definition logic but how is 
+ far from intuitively clear from KilloZapit's auto-tile code.)
+ 
+ Tiles A128-A256 are defined as internal tile IDs 1536-1664.  They are not
+ auto-tiles with dynamic edge designs and each distinct integer in the range
+ represents an individual tile with one form.  This is relevant because 
+ "ground" tiles can be auto-tiles or not auto-tiles and The Last Sovereign 
+ uses a tileset for  the configurable headquarters that mixes both as 
+ options for the ground tile swap.  For reference, it appears the range 
+ B1-B256 are internal tile IDs 1-256, C1-C256 are 257-512, D1-D256 are 
+ 513-768 and E1-E256 are 769-1024.  Since TLS does not experiment with 
+ swapping higher layer tiles, I have not investigated further.
+ 
+ What I have done is tweak the auto-tile configuration process so that 
+ replacing all instances of a given tile ID on a map with a replacement 
+ tile ID will retain the auto-tile edges of the original map, rather than 
+ redraw the edges algorithmically acoording to KilloZapit's code, which does 
+ not perfectly reproduce the edges created by the map editor.  For cases where
+ the tile swapping is done by referencing particular positions or a region 
+ (or a mask, whatever that is) KilloZapit's original code is retained.  This 
+ seems logical to me as there does not seem to be a use case where you are 
+ anarchically swapping water tiles with wall tiles or floor tiles with 
+ waterfall tiles and so on.  KilloZapit also presumes waterfalls and walls will
+ always be found on certain ranges of tile IDs so this is a bit more flexible.
 --------------------------------------------------------------------------------
  ** Credits
 
@@ -348,6 +386,7 @@ class Map_Mask
 		@height = max_height
 		@priority = priority
 		@mask_width = (1 << max_width) - 1
+    		@index = Array.new(max_height) { Array.new(max_width,0)}
 		clear!
 	end
 
@@ -418,6 +457,29 @@ class Map_Mask
 	#--------------------------------------------------------------------------
 	def [](x, y)
 		return (@mask[y] || 0) & (1 << x) != 0
+	end
+
+	#--------------------------------------------------------------------------
+	# * indexSet(x, y, index)
+  	# Addded by DukeLeto7
+	# Sets the index of a swapped tile, storing its edge definitions.
+	#--------------------------------------------------------------------------
+	def indexSet(x, y, index)
+    return unless valid?(x, y)
+		if index > 0
+			@index[y][x] = index
+		else
+			@index[y][x] = 0
+		end
+	end
+
+	#--------------------------------------------------------------------------
+	# * index(x, y)
+  	# Addded by DukeLeto7
+	# Returns the edge definition of given coordinate
+	#--------------------------------------------------------------------------
+	def index(x, y)
+		return @index[y][x]
 	end
 
 	#--------------------------------------------------------------------------
@@ -687,6 +749,9 @@ class Game_Map
           end
           if new_tile.nil? and tiles
             old_tid = tile_id(x, y, z)
+            # Stores the index of each original tile, assuming it is in the
+            # auto-tile range.
+            @updated_tiles.indexSet(x, y, ((tile_id(x, y, z) - 2048) % 48)) if old_tid >= 2048
             old_tid = old_tid - ((old_tid - 2048) % 48) if old_tid >= 2048
             new_tile = tiles[old_tid]
           end
@@ -694,15 +759,25 @@ class Game_Map
           old_tid = tile_id(x, y, z)
           old_tid = old_tid - ((old_tid - 2048) % 48) if old_tid >= 2048
           next if new_tile == old_tid # quicker than the autotile recalibration overhead for a single tile
-          @map.data[x, y, z] = new_tile
+          # Copies the index value from the old tile to the new tile assuming
+          # both are in the autotile range.
+          if tiles and old_tid >= 2048 and new_tile >= 2048
+            @map.data[x, y, z] = new_tile + @updated_tiles.index(x, y)
+          else
+            @map.data[x, y, z] = new_tile
+          end
           @updated_tiles[x, y] = true
         end
       end
       @updated_tiles.grow
+      # KilloZapit's auto-tile generation code is only run if we are not 
+      # swapping by tiles.
+      if tiles
+      else
       #-----------------------------------------------------------------------------
       # The following was originally based on auto-tile generation code by KilloZapit
       #-----------------------------------------------------------------------------
-      @updated_tiles.each { |x, y, valid_left, valid_top, valid_right, valid_bottom|
+       @updated_tiles.each { |x, y, valid_left, valid_top, valid_right, valid_bottom|
         autotile = (tile_id(x, y, z) - 2048) / 48
         next if autotile < 0
         index = 0
@@ -772,6 +847,7 @@ class Game_Map
         end
         @map.data[x, y, z]= 2048 + (48 * autotile) + index
       }
+      end
     end
   end
 

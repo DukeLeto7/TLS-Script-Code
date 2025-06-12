@@ -187,7 +187,7 @@ class Game_System
 	end
 
 	#==============================================================================
-	# ■ Tiles
+	# ¦ Tiles
 	#==============================================================================
 
 	#-----------------------------------------------------------------------------
@@ -231,7 +231,7 @@ class Game_System
 	end
 
 	#==============================================================================
-	# ■ Positions
+	# ¦ Positions
 	#==============================================================================
 
 	#-----------------------------------------------------------------------------
@@ -277,7 +277,7 @@ class Game_System
 	end
 
 	#==============================================================================
-	# ■ Regions
+	# ¦ Regions
 	#==============================================================================
 
 	#-----------------------------------------------------------------------------
@@ -319,7 +319,7 @@ class Game_System
 	end
 
 	#==============================================================================
-	# ■ Masks
+	# ¦ Masks
 	#==============================================================================
 
 	#-----------------------------------------------------------------------------
@@ -361,7 +361,7 @@ class Game_System
 	end
 
 	#==============================================================================
-	# ■ Revert All
+	# ¦ Revert All
 	#==============================================================================
 
 	#-----------------------------------------------------------------------------
@@ -386,7 +386,6 @@ class Map_Mask
 		@height = max_height
 		@priority = priority
 		@mask_width = (1 << max_width) - 1
-    		@index = Array.new(max_height) { Array.new(max_width,0)}
 		clear!
 	end
 
@@ -457,29 +456,6 @@ class Map_Mask
 	#--------------------------------------------------------------------------
 	def [](x, y)
 		return (@mask[y] || 0) & (1 << x) != 0
-	end
-
-	#--------------------------------------------------------------------------
-	# * indexSet(x, y, index)
-  	# Addded by DukeLeto7
-	# Sets the index of a swapped tile, storing its edge definitions.
-	#--------------------------------------------------------------------------
-	def indexSet(x, y, index)
-    return unless valid?(x, y)
-		if index > 0
-			@index[y][x] = index
-		else
-			@index[y][x] = 0
-		end
-	end
-
-	#--------------------------------------------------------------------------
-	# * index(x, y)
-  	# Addded by DukeLeto7
-	# Returns the edge definition of given coordinate
-	#--------------------------------------------------------------------------
-	def index(x, y)
-		return @index[y][x]
 	end
 
 	#--------------------------------------------------------------------------
@@ -747,22 +723,20 @@ class Game_Map
           if new_tile.nil? and regions
             new_tile = regions[tile_id(x, y, 3) >> 8] # region_id(x,y) - but without the extra valid?(x,y) overhead
           end
+          old_tid = tile_id(x, y, z)
+          # Stores the index of each original tile, assuming it is in the
+          # auto-tile range.
+          index = (tile_id(x, y, z) - 2048) % 48 if old_tid >= 2048
+          old_tid = old_tid - ((old_tid - 2048) % 48) if old_tid >= 2048
           if new_tile.nil? and tiles
-            old_tid = tile_id(x, y, z)
-            # Stores the index of each original tile, assuming it is in the
-            # auto-tile range.
-            @updated_tiles.indexSet(x, y, ((tile_id(x, y, z) - 2048) % 48)) if old_tid >= 2048
-            old_tid = old_tid - ((old_tid - 2048) % 48) if old_tid >= 2048
             new_tile = tiles[old_tid]
           end
           next if new_tile.nil?
-          old_tid = tile_id(x, y, z)
-          old_tid = old_tid - ((old_tid - 2048) % 48) if old_tid >= 2048
           next if new_tile == old_tid # quicker than the autotile recalibration overhead for a single tile
           # Copies the index value from the old tile to the new tile assuming
           # both are in the autotile range.
           if tiles and old_tid >= 2048 and new_tile >= 2048
-            @map.data[x, y, z] = new_tile + @updated_tiles.index(x, y)
+            @map.data[x, y, z] = new_tile + index
           else
             @map.data[x, y, z] = new_tile
           end

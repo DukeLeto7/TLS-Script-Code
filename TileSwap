@@ -1,3 +1,46 @@
+=begin
+================================================================================
+
+DukeLeto7's Notes:
+ 
+ Clarification on external versus internal tile IDs as described by HIme.  
+ Tile IDs are stored  internally as large integer numbers.  Tiles A1 through 
+ A127 are stored as numbers 2096 through 8144, at intervals of 48.  Numbers 
+ evenly divisible by 48 are each of the 127 default centered tiles with no 
+ edge effects.  Tiles with edge definitions are stored in the interval as 
+ bitwise flagsets.  1 is left edge, 2 is top edge, 4 is right edge and 
+ 8 is bottom edge, so a tile ID 7 more than the "round" number divisible 
+ by 48 for a given autotile set would  be a version of the tile with left, 
+ top and right edges.  You can get this "index" number by taking the modulus 
+ of 48 of one of these internal tile IDs. (16 and larger numbers also enter 
+ into the edge definition logic but how is far from intuitively clear 
+ from KilloZapit's auto-tile code.)
+ 
+ Tiles A128-A256 are defined as internal tile IDs 1536-1664.  They are not
+ auto-tiles with dynamic edge designs and each distinct integer in the range
+ represents an individual tile with one form.  This is relevant because 
+ "ground" tiles can be auto-tiles or not auto-tiles and The Last Sovereign 
+ uses a tileset for the configurable headquarters that mixes both as 
+ options for the ground tile swap.  For reference, it appears the range 
+ B1-B256 are internal tile IDs 1-256, C1-C256 are 257-512, D1-D256 are 
+ 513-768 and E1-E256 are 769-1024.  Since TLS does not experiment with 
+ swapping higher layer tiles, I have not investigated further.
+ 
+ What I have done is tweak the auto-tile configuration process so that 
+ replacing all instances of a given tile ID on a map with a replacement 
+ tile ID will retain the auto-tile edges of the original map, rather than 
+ redraw the edges algorithmically acoording to KilloZapit's code, which does 
+ not perfectly reproduce the edges created by the map editor.  For cases where
+ the tile swapping is done by referencing particular positions or a region 
+ (or a mask, whatever that is) KilloZapit's original code is retained.  This 
+ seems logical to me as there does not seem to be a use case where you are 
+ anarchically swapping water tiles with wall tiles or floor tiles with 
+ waterfall tiles and so on.  KilloZapit also presumes waterfalls and walls will
+ always be found on certain ranges of tile IDs so this is a bit more flexible.
+ 
+================================================================================
+=end
+
 class Game_Map
   #Overrides and replaces Hime's perform_load_new_map_data
   def perform_load_new_map_data
@@ -12,7 +55,7 @@ class Game_Map
       for y in 0...height
         positions = position_tiles.nil? ? nil : position_tiles[y]
         for x in 0...width
-          new_tile = nil
+                    new_tile = nil
           if positions
             new_tile = positions[x]
           end

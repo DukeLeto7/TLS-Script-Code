@@ -12,7 +12,7 @@ class Game_Map
       for y in 0...height
         positions = position_tiles.nil? ? nil : position_tiles[y]
         for x in 0...width
-                    new_tile = nil
+          new_tile = nil
           if positions
             new_tile = positions[x]
           end
